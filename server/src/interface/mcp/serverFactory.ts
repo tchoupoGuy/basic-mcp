@@ -6,6 +6,10 @@ import { registerGithubUserTool } from "./tools/github-user";
 import { registerWeatherTool } from "./tools/weather";
 import { registerGithubUserResource } from "./resources/github-user";
 import { registerWeatherResource } from "./resources/weather";
+import { registerWeatherPrompts } from "./prompts/weather";
+import { registerGithubUserPrompts } from "./prompts/github-user";
+import { registerReadLogFileTool } from "./tools/log-file";
+import { registerLogFileResource } from "./resources/log-file";
 
 export function createMcpServer(
     getGitHubUserUseCase: GetGitHubUserUseCase,
@@ -18,6 +22,10 @@ export function createMcpServer(
     registerWeatherTool(server, getWeatherUseCase);
     registerGithubUserResource(server, getGitHubUserUseCase);
     registerWeatherResource(server, getWeatherUseCase);
+    registerWeatherPrompts(server);
+    registerGithubUserPrompts(server);
+    registerReadLogFileTool(server);
+    registerLogFileResource(server);
 
     return server;
 }

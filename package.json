@@ -17,9 +17,13 @@
     "test": "npm test"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.75",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^6.0.175",
     "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "ollama-ai-provider-v2": "^3.5.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

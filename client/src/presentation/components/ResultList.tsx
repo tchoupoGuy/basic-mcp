@@ -17,6 +17,7 @@ export function ResultList({ results, onClear }: ResultListProps) {
                     key={i}
                     style={{
                         background: "#f5f5f5",
+                        color: "#333",
                         padding: 12,
                         borderRadius: 6,
                         overflowX: "auto",

@@ -7,4 +7,8 @@ export class GetWeatherUseCase {
     execute(latitude: number, longitude: number): Promise<WeatherData> {
         return this.repository.getCurrentWeather(latitude, longitude);
     }
+
+    executeByCity(city: string): Promise<WeatherData> {
+        return this.repository.getWeatherByCity(city);
+    }
 }

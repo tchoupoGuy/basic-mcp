@@ -4,12 +4,16 @@ import { GetGitHubUserUseCase } from "./application/use-cases/GetGitHubUserUseCa
 import { GetWeatherUseCase } from "./application/use-cases/GetWeatherUseCase";
 import { createMcpServer } from "./interface/mcp/serverFactory";
 
-export function buildServer() {
+export function buildUseCases() {
     const githubRepo = new GitHubUserRepository();
     const weatherRepo = new WeatherRepository();
+    return {
+        getGitHubUserUseCase: new GetGitHubUserUseCase(githubRepo),
+        getWeatherUseCase: new GetWeatherUseCase(weatherRepo),
+    };
+}
 
-    const getGitHubUserUseCase = new GetGitHubUserUseCase(githubRepo);
-    const getWeatherUseCase = new GetWeatherUseCase(weatherRepo);
-
+export function buildServer() {
+    const { getGitHubUserUseCase, getWeatherUseCase } = buildUseCases();
     return createMcpServer(getGitHubUserUseCase, getWeatherUseCase);
 }

@@ -2,6 +2,33 @@ import { IWeatherRepository } from "../../domain/ports/IWeatherRepository";
 import { WeatherData } from "../../domain/entities/WeatherData";
 
 export class WeatherRepository implements IWeatherRepository {
+    async getWeatherByCity(city: string): Promise<WeatherData> {
+        const geoUrl = new URL("https://geocoding-api.open-meteo.com/v1/search");
+        geoUrl.searchParams.set("name", city);
+        geoUrl.searchParams.set("count", "1");
+        geoUrl.searchParams.set("language", "fr");
+        geoUrl.searchParams.set("format", "json");
+
+        const geoResponse = await fetch(geoUrl.toString());
+        if (!geoResponse.ok) {
+            throw new Error(`Geocoding API error: ${geoResponse.status} ${geoResponse.statusText}`);
+        }
+
+        const geoData = await geoResponse.json() as {
+            results?: { latitude: number; longitude: number; name: string; country: string }[];
+        };
+
+        if (!geoData.results || geoData.results.length === 0) {
+            throw new Error(`City not found: "${city}"`);
+        }
+
+        const { latitude, longitude, name: city_name, country } = geoData.results[0];
+        const weather = await this.getCurrentWeather(latitude, longitude);
+        weather.location.city_name = city_name;
+        weather.location.country = country;
+        return weather;
+    }
+
     async getCurrentWeather(latitude: number, longitude: number): Promise<WeatherData> {
         const url = new URL("https://api.open-meteo.com/v1/forecast");
         url.searchParams.set("latitude", String(latitude));

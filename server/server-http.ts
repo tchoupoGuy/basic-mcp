@@ -1,8 +1,12 @@
 import express from "express";
 import cors from "cors";
 import { randomUUID } from "crypto";
+import { config } from "dotenv";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
-import { buildServer } from "./src/compositionRoot";
+import { buildServer, buildUseCases } from "./src/compositionRoot";
+import { createChatRouter } from "./src/interface/chat/chatRoute";
+
+config({ path: new URL("../.env", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1") });
 
 const app = express();
 app.use(cors({
@@ -11,6 +15,10 @@ app.use(cors({
 app.use(express.json());
 
 const PORT = 3001;
+
+// Mount chat route
+const { getGitHubUserUseCase, getWeatherUseCase } = buildUseCases();
+app.use(createChatRouter(getWeatherUseCase, getGitHubUserUseCase));
 
 const sessions = new Map<string, StreamableHTTPServerTransport>();
 
