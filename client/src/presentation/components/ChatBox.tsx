@@ -21,7 +21,7 @@ export function ChatBox() {
     return (
         <div style={{ border: "1px solid #ccc", borderRadius: 8, overflow: "hidden" }}>
             <div style={{ background: "#f5f5f5", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <h3 style={{ margin: 0, fontSize: 16 }}>Chat avec Claude (via tools MCP)</h3>
+                <h3 style={{ margin: 0, fontSize: 16 }}>Chat (Ollama · tools MCP)</h3>
                 <button onClick={clearMessages} style={{ fontSize: 12, padding: "2px 8px", cursor: "pointer" }}>
                     Effacer
                 </button>

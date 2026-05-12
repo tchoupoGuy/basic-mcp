@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp";
 
-const MCP_SERVER_URL = "http://localhost:3001/mcp";
+const MCP_SERVER_URL = `${import.meta.env.VITE_API_URL ?? "http://localhost:3001"}/mcp`;
 
 let client: Client | null = null;
 

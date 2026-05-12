@@ -3,8 +3,9 @@ import cors from "cors";
 import { randomUUID } from "crypto";
 import { config } from "dotenv";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
-import { buildServer, buildUseCases } from "./src/compositionRoot";
+import { buildServer, buildUseCases, buildInProcessMcpClient } from "./src/compositionRoot";
 import { createChatRouter } from "./src/interface/chat/chatRoute";
+import { warmupTesseractWorker } from "./src/infrastructure/ocr/tesseractWorker";
 
 config({ path: new URL("../.env", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1") });
 
@@ -15,11 +16,7 @@ app.use(cors({
 app.use(express.json());
 
 const PORT = 3001;
-
-// Mount chat route
-const { getGitHubUserUseCase, getWeatherUseCase } = buildUseCases();
-app.use(createChatRouter(getWeatherUseCase, getGitHubUserUseCase));
-
+const sharedUseCases = buildUseCases();
 const sessions = new Map<string, StreamableHTTPServerTransport>();
 
 function isInitializeRequest(body: unknown): boolean {
@@ -29,7 +26,8 @@ function isInitializeRequest(body: unknown): boolean {
 }
 
 // POST: client-to-server messages
-app.post("/mcp", async (req, res) => {
+// Timeout étendu à 10 min pour absorber l'OCR de documents volumineux
+app.post("/mcp", (req, res, next) => { res.setTimeout(600_000); next(); }, async (req, res) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     // Existing session
@@ -62,7 +60,7 @@ app.post("/mcp", async (req, res) => {
         }
     };
 
-    const server = buildServer();
+    const server = buildServer(sharedUseCases);
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
 });
@@ -90,6 +88,16 @@ app.delete("/mcp", async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`MCP HTTP server running at http://localhost:${PORT}/mcp`);
-});
+async function init() {
+    const mcpClient = await buildInProcessMcpClient();
+    app.use(createChatRouter(mcpClient));
+
+    app.listen(PORT, () => {
+        console.log(`MCP HTTP server running at http://localhost:${PORT}/mcp`);
+        // Pré-initialiser le worker OCR en arrière-plan dès le démarrage
+        // pour éviter un timeout lors de la première requête client
+        warmupTesseractWorker();
+    });
+}
+
+init().catch(console.error);

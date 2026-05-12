@@ -8,7 +8,12 @@ export function useMcpTool() {
         setLoading(true);
         try {
             const client = await getMcpClient();
-            const result = await client.callTool({ name: toolName, arguments: args });
+            // Timeout étendu à 30 min pour les opérations longues (indexation de gros chapitres)
+            const result = await client.callTool(
+                { name: toolName, arguments: args },
+                undefined,
+                { timeout: 1_800_000 },
+            );
             const text = (result.content as Array<{ type: string; text: string }>)
                 .filter((c) => c.type === "text")
                 .map((c) => c.text)

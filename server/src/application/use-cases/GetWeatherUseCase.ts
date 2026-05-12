@@ -1,3 +1,4 @@
+
 import { IWeatherRepository } from "../../domain/ports/IWeatherRepository";
 import { WeatherData } from "../../domain/entities/WeatherData";
 

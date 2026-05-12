@@ -10,6 +10,10 @@ import { registerWeatherPrompts } from "./prompts/weather";
 import { registerGithubUserPrompts } from "./prompts/github-user";
 import { registerReadLogFileTool } from "./tools/log-file";
 import { registerLogFileResource } from "./resources/log-file";
+import { registerDocumentChaptersResource } from "./resources/document-chapters";
+import { registerGenerateDocumentPdfTool } from "./tools/document-pdf";
+import { registerExtractDocumentIndexTool, registerListDocumentsTool } from "./tools/document-index";
+import { registerAskDocumentTool, registerGenerateQuizTool } from "./tools/document-study";
 
 export function createMcpServer(
     getGitHubUserUseCase: GetGitHubUserUseCase,
@@ -26,6 +30,13 @@ export function createMcpServer(
     registerGithubUserPrompts(server);
     registerReadLogFileTool(server);
     registerLogFileResource(server);
-
+    registerDocumentChaptersResource(server);
+    registerGenerateDocumentPdfTool(server);
+    registerExtractDocumentIndexTool(server);
+    registerListDocumentsTool(server);
+    registerAskDocumentTool(server);
+    registerGenerateQuizTool(server);
+    
     return server;
 }
+

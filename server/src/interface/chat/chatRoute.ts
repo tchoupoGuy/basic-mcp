@@ -1,14 +1,9 @@
 import { Router } from "express";
-import { streamText, tool, stepCountIs } from "ai";
+import { streamText, jsonSchema, tool, stepCountIs } from "ai";
 import { ollama } from "ollama-ai-provider-v2";
-import { z } from "zod";
-import { GetWeatherUseCase } from "../../application/use-cases/GetWeatherUseCase";
-import { GetGitHubUserUseCase } from "../../application/use-cases/GetGitHubUserUseCase";
+import { Client } from "@modelcontextprotocol/sdk/client/index";
 
-export function createChatRouter(
-    getWeatherUseCase: GetWeatherUseCase,
-    getGitHubUserUseCase: GetGitHubUserUseCase,
-): Router {
+export function createChatRouter(mcpClient: Client): Router {
     const router = Router();
 
     router.post("/chat", async (req, res) => {
@@ -22,27 +17,32 @@ export function createChatRouter(
             return;
         }
 
-        const tools = {
-            get_weather: tool({
-                description: "Get current weather for a city or coordinates",
-                inputSchema: z.object({
-                    city: z.string().optional().describe("City name (e.g. 'Paris', 'Tokyo')"),
-                    latitude: z.number().optional().describe("Latitude"),
-                    longitude: z.number().optional().describe("Longitude"),
-                }),
-                execute: async ({ city, latitude, longitude }) => {
-                    if (city) return getWeatherUseCase.executeByCity(city);
-                    return getWeatherUseCase.execute(latitude!, longitude!);
+        const { tools: mcpTools } = await mcpClient.listTools();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tools: Record<string, any> = {};
+        for (const mcpTool of mcpTools) {
+            const toolName = mcpTool.name;
+            tools[toolName] = tool({
+                description: mcpTool.description ?? "",
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                inputSchema: jsonSchema(mcpTool.inputSchema as any),
+                execute: async (input) => {
+                    const result = await mcpClient.callTool({
+                        name: toolName,
+                        arguments: input as Record<string, unknown>,
+                    });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const content = result.content as any[];
+                    if (result.isError) {
+                        throw new Error(JSON.stringify(content));
+                    }
+                    const texts = content
+                        .filter((c: { type: string }) => c.type === "text")
+                        .map((c: { type: string; text: string }) => c.text);
+                    return texts.join("\n") || JSON.stringify(content);
                 },
-            }),
-            get_github_user: tool({
-                description: "Get public profile information for a GitHub user",
-                inputSchema: z.object({
-                    username: z.string().describe("GitHub username"),
-                }),
-                execute: async ({ username }) => getGitHubUserUseCase.execute(username),
-            }),
-        };
+            });
+        }
 
         const messages: Array<{ role: "user" | "assistant"; content: string }> = [
             ...history,

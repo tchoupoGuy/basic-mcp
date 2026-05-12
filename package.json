@@ -13,23 +13,30 @@
   "scripts": {
     "start": "npx tsx server/main.ts",
     "start:http": "npx tsx server/server-http.ts",
-    "start:ui": "npm run start:http & cd client && npm run dev",
+    "start:ui": "concurrently \"npm run start:http\" \"npm run dev --prefix client\"",
     "test": "npm test"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.75",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/pdfkit": "^0.17.6",
+    "@types/sharp": "^0.31.1",
     "ai": "^6.0.175",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "ollama-ai-provider-v2": "^3.5.0",
+    "openai": "^6.37.0",
+    "pdfkit": "^0.18.0",
+    "sharp": "^0.34.5",
+    "tesseract.js": "^7.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
+    "concurrently": "^9.2.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"

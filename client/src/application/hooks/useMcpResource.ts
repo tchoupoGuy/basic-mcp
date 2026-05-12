@@ -8,7 +8,8 @@ export function useMcpResource() {
         setLoading(true);
         try {
             const client = await getMcpClient();
-            const result = await client.readResource({ uri });
+            // Timeout étendu à 10 min pour les ressources nécessitant de l'OCR
+            const result = await client.readResource({ uri }, { timeout: 600_000 });
             const text = (result.contents as Array<{ mimeType?: string; text?: string; uri: string }>)
                 .map((c) => c.text ?? "")
                 .join("\n");
