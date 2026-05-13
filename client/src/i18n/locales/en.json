@@ -1,0 +1,90 @@
+{
+  "common": {
+    "chapterN": "Chapter {{n}}",
+    "loading": "…"
+  },
+  "header": {
+    "subtitle": "Prepare your certification from your scanned course materials"
+  },
+  "docSelector": {
+    "title": "Active document",
+    "subtitle": "Source used for questions and quizzes",
+    "label": "Document",
+    "autoDetect": "Auto-detect",
+    "chapterCount": "{{count}} ch.",
+    "refresh": "↺ Refresh",
+    "empty": "No document analyzed — use step 1 below"
+  },
+  "step1": {
+    "title": "Analyze my documents",
+    "subtitle": "AI reads your files once",
+    "hint": "Extracts text from your documents and saves it locally. Supported formats: <strong>images</strong> (png, jpg, tiff…) via Tesseract OCR, <strong>native PDF</strong> (selectable text), <strong>Word</strong> (.docx), <strong>plain text</strong> (.txt, .md). Steps 2 and 3 use this index without re-running the extraction.",
+    "nameLabel": "Name",
+    "namePlaceholder": "e.g: pmp, scrum-guide",
+    "folderLabel": "Source folder",
+    "folderPlaceholder": "Absolute path to the folder (optional)",
+    "chaptersLabel": "Chapters",
+    "chaptersPlaceholder": "e.g: 1  or  1,2,3",
+    "reanalyze": "Re-analyze (even if already done)",
+    "btn": "Analyze",
+    "btnLoading": "Analysis in progress…",
+    "resultLabel": "Analysis{{name}} — chapters [{{chapters}}]",
+    "autoLabel": "⏳ Document not analyzed — auto-analyzing chapter {{chapter}}...",
+    "autoMsg": "This chapter has not been analyzed yet. Analysis in progress, please wait..."
+  },
+  "step2": {
+    "title": "Ask a question",
+    "subtitle": "Based on your course",
+    "placeholder": "Ex: What is the difference between risk mitigation and risk avoidance?\nEx: Explain Earned Value Management (EVM) and its CPI / SPI indicators",
+    "chapterLabel": "Chapter",
+    "allChapters": "All chapters",
+    "btn": "Ask the question",
+    "btnLoading": "Answering…",
+    "btnDone": "✓ Result added ↓"
+  },
+  "step3": {
+    "title": "Generate a MCQ quiz",
+    "subtitle": "PMI exam format",
+    "hint": "Situational questions with 4 options, correct answer and detailed explanation.",
+    "chapterLabel": "Chapter",
+    "countLabel": "Questions",
+    "domainLabel": "Domain",
+    "domainAll": "All",
+    "domainPredictive": "Predictive (PMBOK)",
+    "domainAgile": "Agile",
+    "domainHybrid": "Hybrid",
+    "btn": "Generate quiz",
+    "btnLoading": "Generating…",
+    "btnDone": "✓ Result added ↓",
+    "resultLabel": "Quiz Ch.{{chapter}} – {{count}} questions ({{domain}})"
+  },
+  "pdf": {
+    "title": "Export to PDF",
+    "subtitle": "Review support",
+    "modeLabel": "Mode",
+    "modeImages": "Images (faithful to original)",
+    "modeVision": "GPT-4o text (searchable)",
+    "modeImagesText": "Images + OCR text",
+    "modeText": "Tesseract OCR text",
+    "chaptersLabel": "Chapters",
+    "chaptersPlaceholder": "e.g: 1,2,3",
+    "fileLabel": "File",
+    "btn": "Generate PDF",
+    "btnLoading": "Generating…",
+    "resultLabel": "PDF [{{mode}}] chapters [{{chapters}}]"
+  },
+  "results": {
+    "title": "Results ({{count}})",
+    "clear": "Clear all"
+  },
+  "review": {
+    "title": "Chapter review",
+    "subtitle": "GPT-4o summary + mastery tracking",
+    "chapterLabel": "Chapter",
+    "btn": "Get summary",
+    "btnLoading": "Loading…",
+    "hint": "Auto-analyzes if needed",
+    "summaryQuestion": "Make a detailed and structured summary of this chapter, with key concepts, important terms and essential points for the PMP exam.",
+    "resultLabel": "Summary Chapter {{chapter}}"
+  }
+}

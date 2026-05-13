@@ -4,6 +4,7 @@ import { getMcpClient } from "../../infrastructure/mcp/McpClientAdapter";
 export interface DocumentInfo {
     name: string;
     chapters: number;
+    chapterNumbers: number[];
     generatedAt: string;
 }
 
@@ -34,10 +35,14 @@ export function useDocuments() {
                 const name = nameLine[1].trim();
                 const metaLine = lines[i + 1] ?? "";
                 const chapMatch = metaLine.match(/Chapitres\s*:\s*(\d+)/);
+                const chapterNumsMatch = metaLine.match(/n°:\s*([\d,\s]+)/);
                 const dateMatch = metaLine.match(/Indexé le\s*:\s*(\S+)/);
                 docs.push({
                     name,
                     chapters: chapMatch ? parseInt(chapMatch[1]) : 0,
+                    chapterNumbers: chapterNumsMatch
+                        ? chapterNumsMatch[1].split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+                        : [],
                     generatedAt: dateMatch ? dateMatch[1] : "",
                 });
                 i++; // skip meta line

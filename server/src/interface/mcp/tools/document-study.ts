@@ -4,83 +4,36 @@
  *   - ask-document   : pose une question sur le contenu du document indexé
  *   - generate-quiz  : génère des questions QCM style examen PMP sur un chapitre
  *
- * Stratégie LLM (priorité décroissante) :
- *   1. Ollama local (llama3.2) — toujours essayé en premier, 100% offline
- *   2. GPT-4o via GitHub Models — utilisé si GITHUB_TOKEN présent ET Ollama indisponible
- *   3. Mode BM25 pur — ask-document retourne les passages sans synthèse LLM
+ * Stratégie LLM :
+ *   1. Ollama local (llama3.2) — 100% offline
+ *   2. Mode BM25 pur — ask-document retourne les passages sans synthèse si Ollama indisponible
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import { z } from "zod";
 import * as fs from "fs";
-import OpenAI from "openai";
 import { generateText } from "ai";
 import { ollama } from "ollama-ai-provider-v2";
 import { INDEX_PATH, getIndexPath, listIndexedDocuments } from "./document-index";
 import { buildIndex as buildBm25Index, search as bm25Search, Chunk } from "../../../infrastructure/search/bm25Engine";
+import { saveHistory } from "../../../infrastructure/history/historyStore";
 
-/** Endpoint GitHub Models (fallback GPT-4o) */
-const GITHUB_MODELS_ENDPOINT = "https://models.inference.ai.azure.com";
-const GITHUB_CHAT_MODEL = "gpt-4o";
 /** Modèle Ollama local */
 const LOCAL_MODEL = process.env.OLLAMA_MODEL ?? "llama3.2";
 
 /**
- * Envoie un prompt à un LLM selon la disponibilité :
- *   1. Ollama local (priorité)
- *   2. GPT-4o via GitHub Models (fallback si GITHUB_TOKEN présent)
- * Lance une erreur si aucun LLM n'est disponible.
+ * Envoie un prompt à Ollama local.
+ * Lance une erreur si Ollama est indisponible (le fallback BM25 est géré par l'appelant).
  */
 async function chat(systemPrompt: string, userMessage: string): Promise<string> {
-    // ── Tentative Ollama local ────────────────────────────────────────────────
-    try {
-        const { text } = await generateText({
-            model: ollama(LOCAL_MODEL),
-            system: systemPrompt,
-            messages: [
-                { role: "user", content: userMessage },
-            ],
-        });
-        return text.trim();
-    } catch (ollamaErr) {
-        const msg = ollamaErr instanceof Error ? ollamaErr.message : String(ollamaErr);
-        console.warn(`[Study] Ollama indisponible (${msg.slice(0, 80)}). Tentative GPT-4o...`);
-    }
-
-    // ── Fallback GPT-4o via GitHub Models ────────────────────────────────────
-    const token = process.env.GITHUB_TOKEN;
-    if (!token) {
-        throw new Error(
-            "Aucun LLM disponible : Ollama ne répond pas et GITHUB_TOKEN est absent.\n" +
-            "Solutions : démarrez Ollama (`ollama serve`) ou ajoutez GITHUB_TOKEN dans .env.",
-        );
-    }
-    const client = new OpenAI({ baseURL: GITHUB_MODELS_ENDPOINT, apiKey: token });
-    const timeoutMs = 180_000;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-            const response = await Promise.race([
-                client.chat.completions.create({
-                    model: GITHUB_CHAT_MODEL,
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user",   content: userMessage },
-                    ],
-                    temperature: 0.5,
-                    max_tokens: 2048,
-                    stream: false as const,
-                }),
-                new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error(`Timeout GPT-4o (${timeoutMs / 1000}s)`)), timeoutMs),
-                ),
-            ]);
-            return response.choices[0]?.message?.content?.trim() ?? "";
-        } catch (err) {
-            if (attempt === 2) throw err;
-            console.warn(`[Study] GPT-4o tentative ${attempt} échouée. Retry dans 15s...`);
-            await new Promise(r => setTimeout(r, 15_000));
-        }
-    }
-    return "";
+    const { text } = await generateText({
+        model: ollama(LOCAL_MODEL),
+        system: systemPrompt,
+        messages: [
+            { role: "user", content: userMessage },
+        ],
+        maxRetries: 0,
+    });
+    return text.trim();
 }
 
 /** Structure d'une page dans l'index */
@@ -108,8 +61,8 @@ function resolveIndexPath(docName?: string): string {
     if (docs.length > 1) {
         const names = docs.map(d => `"${d.name}"`).join(", ");
         throw new Error(
-            `Plusieurs documents disponibles : ${names}. " +
-            "Précisez le paramètre document (ex: document="pmp").`,
+            `Plusieurs documents disponibles : ${names}. ` +
+            `Précisez le paramètre document (ex: document="pmp").`,
         );
     }
     // Aucun document dans le nouveau format — vérifier l'ancien chemin
@@ -136,34 +89,6 @@ function loadIndex(docName?: string): DocumentIndex {
         );
     }
     return JSON.parse(fs.readFileSync(indexPath, "utf-8")) as DocumentIndex;
-}
-
-/** Timeout par appel GPT-4o en ms */
-const CALL_TIMEOUT_MS = 180_000;
-
-/** Appelle GPT-4o avec timeout et 1 retry automatique */
-async function chatWithTimeout(
-    client: OpenAI,
-    params: Parameters<OpenAI["chat"]["completions"]["create"]>[0],
-): Promise<string> {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-            const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error(`Timeout GPT-4o (${CALL_TIMEOUT_MS / 1000}s)`)), CALL_TIMEOUT_MS),
-            );
-            const response = await Promise.race([
-                client.chat.completions.create({ ...params, stream: false as const }),
-                timeoutPromise,
-            ]);
-            return response.choices[0]?.message?.content?.trim() ?? "";
-        } catch (err) {
-            if (attempt === 2) throw err;
-            const msg = err instanceof Error ? err.message : String(err);
-            console.warn(`[Study] Échec tentative ${attempt} : ${msg}. Retry dans 15s...`);
-            await new Promise(r => setTimeout(r, 15_000));
-        }
-    }
-    return "";
 }
 
 /**
@@ -392,6 +317,18 @@ export function registerGenerateQuizTool(server: McpServer) {
             const quiz = await chat(systemPrompt, userMessage);
 
             const header = `Quiz PMP — Chapitre ${chapter} (${count} question${count > 1 ? "s" : ""})\n${"─".repeat(50)}\n\n`;
+
+            // Persist quiz to history
+            saveHistory({
+                type: "quiz",
+                timestamp: new Date().toISOString(),
+                document: docName,
+                chapter,
+                count,
+                domain,
+                content: header + quiz,
+            });
+
             return { content: [{ type: "text" as const, text: header + quiz }] };
         },
     );

@@ -5,6 +5,7 @@ import { config } from "dotenv";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
 import { buildServer, buildUseCases, buildInProcessMcpClient } from "./src/compositionRoot";
 import { createChatRouter } from "./src/interface/chat/chatRoute";
+import { createHistoryRouter } from "./src/interface/history/historyRoute";
 import { warmupTesseractWorker } from "./src/infrastructure/ocr/tesseractWorker";
 
 config({ path: new URL("../.env", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1") });
@@ -91,6 +92,7 @@ app.delete("/mcp", async (req, res) => {
 async function init() {
     const mcpClient = await buildInProcessMcpClient();
     app.use(createChatRouter(mcpClient));
+    app.use(createHistoryRouter());
 
     app.listen(PORT, () => {
         console.log(`MCP HTTP server running at http://localhost:${PORT}/mcp`);

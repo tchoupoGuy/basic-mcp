@@ -6,6 +6,8 @@ client/node_modules/
 dist/
 dist-ssr/
 client/dist/
+dist-electron/
+dist-app/
 
 # Logs
 logs/

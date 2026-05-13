@@ -11,10 +11,14 @@ body {
 .app { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
 
 /* ── Header ───────────────────────────────────────────────── */
-.app-header { text-align: center; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #1e293b; }
-.app-header h1 { font-size: 2rem; color: #f8fafc; letter-spacing: -0.02em; }
+.app-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid #1e293b; }
+.app-header h1 { font-size: 1.75rem; color: #f8fafc; letter-spacing: -0.02em; }
 .app-header h1 span { color: #38bdf8; }
-.app-header p { color: #64748b; font-size: 0.95rem; margin-top: 0.4rem; }
+.app-header p { color: #64748b; font-size: 0.9rem; margin-top: 0.3rem; }
+.lang-switch { display: flex; gap: 4px; flex-shrink: 0; }
+.lang-btn { background: #1e293b; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s; }
+.lang-btn:hover { background: #334155; color: #f1f5f9; }
+.lang-btn.active { background: #38bdf8; color: #0f172a; border-color: #38bdf8; }
 
 /* ── Workflow steps ───────────────────────────────────────── */
 .workflow { display: flex; flex-direction: column; gap: 1.5rem; margin-bottom: 2rem; }
@@ -96,3 +100,44 @@ select { cursor: pointer; }
 .star { font-size: 0.85rem; color: #334155; cursor: pointer; transition: color 0.1s; user-select: none; }
 .star.filled { color: #fbbf24; }
 .star:hover { color: #fde68a; }
+
+/* ── Tab navigation ───────────────────────────────────────── */
+.tab-nav { display: flex; gap: 2px; background: #162032; border-radius: 12px; padding: 4px; margin-bottom: 1.5rem; overflow-x: auto; scrollbar-width: none; }
+.tab-nav::-webkit-scrollbar { display: none; }
+.tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0.6rem 0.5rem; border: none; border-radius: 8px; background: transparent; color: #64748b; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; min-width: 58px; }
+.tab-btn:hover { background: #1e293b; color: #94a3b8; }
+.tab-btn.active { background: #0ea5e9; color: white; }
+.tab-icon { font-size: 1.1rem; line-height: 1; }
+.tab-label { font-size: 0.68rem; }
+
+/* ── Page layout ──────────────────────────────────────────── */
+.page { display: flex; flex-direction: column; gap: 1rem; min-height: 60vh; padding-bottom: 2rem; }
+
+/* ── Doc bar ─────────────────────────────────────────────── */
+.doc-bar { display: flex; align-items: center; gap: 0.75rem; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 0.6rem 1rem; flex-wrap: wrap; }
+.doc-bar-label { font-size: 0.8rem; color: #64748b; font-weight: 600; }
+.doc-bar-active { font-size: 0.8rem; color: #38bdf8; font-weight: 700; padding: 2px 8px; background: #0c2340; border-radius: 6px; }
+
+/* ── Page card ───────────────────────────────────────────── */
+.page-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+.page-card-header { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1.25rem; background: #162032; border-bottom: 1px solid #334155; }
+.page-card-title { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; }
+.page-card-subtitle { font-size: 0.8rem; color: #64748b; margin-left: auto; }
+.page-card-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+
+/* ── Home page ───────────────────────────────────────────── */
+.home-page { gap: 1.5rem; }
+.home-hero { text-align: center; padding: 2.5rem 1rem 1rem; }
+.home-hero h2 { font-size: 1.6rem; color: #f8fafc; margin-bottom: 0.5rem; }
+.home-hero h2 span { color: #38bdf8; }
+.home-hero p { color: #64748b; font-size: 0.95rem; }
+.home-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+@media (max-width: 620px) { .home-grid { grid-template-columns: repeat(2, 1fr); } }
+.home-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.4rem 1rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; cursor: pointer; text-align: center; transition: all 0.15s; }
+.home-card:hover { background: #162032; border-color: #0ea5e9; transform: translateY(-2px); box-shadow: 0 4px 20px rgba(14,165,233,0.15); }
+.home-card-icon { font-size: 2rem; }
+.home-card-title { font-size: 0.9rem; font-weight: 700; color: #e2e8f0; }
+.home-card-desc { font-size: 0.75rem; color: #64748b; line-height: 1.4; }
+.home-docs { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.25rem 0; }
+.home-docs-label { font-size: 0.8rem; color: #64748b; }
+.home-doc-badge { font-size: 0.75rem; color: #38bdf8; background: #0c2340; border-radius: 6px; padding: 3px 10px; border: 1px solid #1e3a5f; }

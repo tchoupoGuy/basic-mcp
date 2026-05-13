@@ -29,6 +29,7 @@ import * as path from "path";
 import { extractTextFromImage } from "../../../infrastructure/vision/githubVisionService";
 import { getTesseractWorker } from "../../../infrastructure/ocr/tesseractWorker";
 import { preprocessForOcr } from "../../../infrastructure/ocr/imagePreprocessor";
+import { extractText, isSupportedFile, SUPPORTED_EXTENSIONS } from "../../../infrastructure/extractors/documentExtractor";
 
 /**
  * Extrait le texte d'une image avec Tesseract + prétraitement Sharp.
@@ -106,9 +107,9 @@ export function getIndexPath(docName: string): string {
  * Cherche les sous-dossiers de output/ contenant un document-index.json.
  * Inclut aussi l'ancien fichier output/document-index.json (compatibilité).
  */
-export function listIndexedDocuments(): Array<{ name: string; indexPath: string; generatedAt: string; chapters: number }> {
+export function listIndexedDocuments(): Array<{ name: string; indexPath: string; generatedAt: string; chapters: number; chapterNumbers: number[] }> {
     if (!fs.existsSync(OUTPUT_BASE)) return [];
-    const results: Array<{ name: string; indexPath: string; generatedAt: string; chapters: number }> = [];
+    const results: Array<{ name: string; indexPath: string; generatedAt: string; chapters: number; chapterNumbers: number[] }> = [];
 
     // Nouveau format : output/{name}/document-index.json
     for (const entry of fs.readdirSync(OUTPUT_BASE, { withFileTypes: true })) {
@@ -117,11 +118,13 @@ export function listIndexedDocuments(): Array<{ name: string; indexPath: string;
         if (!fs.existsSync(indexPath)) continue;
         try {
             const idx = JSON.parse(fs.readFileSync(indexPath, "utf-8"));
+            const chapterNumbers = Object.keys(idx.chapters ?? {}).map(k => parseInt(k)).sort((a, b) => a - b);
             results.push({
                 name: entry.name,
                 indexPath,
                 generatedAt: idx.generatedAt ?? "unknown",
-                chapters: Object.keys(idx.chapters ?? {}).length,
+                chapters: chapterNumbers.length,
+                chapterNumbers,
             });
         } catch { /* index corrompu, ignoré */ }
     }
@@ -131,11 +134,13 @@ export function listIndexedDocuments(): Array<{ name: string; indexPath: string;
     if (fs.existsSync(legacyPath) && !results.some(r => r.name === "legacy")) {
         try {
             const idx = JSON.parse(fs.readFileSync(legacyPath, "utf-8"));
+            const chapterNumbers = Object.keys(idx.chapters ?? {}).map(k => parseInt(k)).sort((a, b) => a - b);
             results.push({
                 name: "legacy",
                 indexPath: legacyPath,
                 generatedAt: idx.generatedAt ?? "unknown",
-                chapters: Object.keys(idx.chapters ?? {}).length,
+                chapters: chapterNumbers.length,
+                chapterNumbers,
             });
         } catch { /* ignoré */ }
     }
@@ -146,19 +151,22 @@ export function listIndexedDocuments(): Array<{ name: string; indexPath: string;
 /** @deprecated Utiliser getIndexPath() à la place. Conservé pour compatibilité. */
 export const INDEX_PATH = path.join(OUTPUT_BASE, "document-index.json");
 
-/** Extensions d'image acceptées */
-const IMAGE_EXTENSIONS = /\.(png|jpg|jpeg|bmp|tiff|tif|webp)$/i;
-
 /** Retourne le chemin de base des chapitres (lu au moment de l'appel) */
 function getBasePath(): string {
     return process.env.DOCUMENT_BASE_PATH ||
         path.resolve(process.cwd(), "Management_de_project_Logiciels");
 }
 
-/** Liste et trie les fichiers image d'un dossier par ordre alphanumérique */
-function listImageFiles(dir: string): string[] {
+/**
+ * Liste et trie tous les fichiers supportés d'un dossier par ordre alphanumérique.
+ * Formats acceptés : images (png/jpg/...), PDF, Word (.docx), texte (.txt/.md/...)
+ */
+function listSupportedFiles(dir: string): string[] {
     return fs.readdirSync(dir)
-        .filter(f => IMAGE_EXTENSIONS.test(f))
+        .filter(f => {
+            const full = path.join(dir, f);
+            return fs.statSync(full).isFile() && isSupportedFile(full);
+        })
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
@@ -167,11 +175,13 @@ export function registerExtractDocumentIndexTool(server: McpServer) {
         "extract-document-index",
         {
             description:
-                "Extracts text from all chapter images using Tesseract OCR (local, with Sharp preprocessing) " +
-                "and saves the result to output/document-index.json. " +
-                "Falls back to GPT-4o Vision if GITHUB_TOKEN is set and OCR confidence is too low. " +
-                "Run this once before using ask-document or generate-quiz. " +
-                "Skips chapters already indexed unless force=true.",
+                "Extracts text from documents in chapter subfolders and saves the index to output/{name}/document-index.json. " +
+                `Supported formats: ${SUPPORTED_EXTENSIONS}. ` +
+                "For images: uses Tesseract OCR with Sharp preprocessing (local, offline). " +
+                "For PDF (native text): uses pdf-parse (no binary required). " +
+                "For Word (.docx): uses mammoth (no binary required). " +
+                "For plain text (.txt, .md): reads directly. " +
+                "Run once before using ask-document or generate-quiz. Skips already-indexed files unless force=true.",
             inputSchema: z.object({
                 name: z
                     .string()
@@ -245,9 +255,9 @@ export function registerExtractDocumentIndexTool(server: McpServer) {
                     continue;
                 }
 
-                const imageFiles = listImageFiles(safeDir);
-                if (imageFiles.length === 0) {
-                    results.push(`Chapitre ${chapterNum} : aucune image — ignoré`);
+                const allFiles = listSupportedFiles(safeDir);
+                if (allFiles.length === 0) {
+                    results.push(`Chapitre ${chapterNum} : aucun fichier supporté — ignoré (formats: ${SUPPORTED_EXTENSIONS})`);
                     continue;
                 }
 
@@ -259,36 +269,58 @@ export function registerExtractDocumentIndexTool(server: McpServer) {
                 // Index des fichiers déjà traités pour ce chapitre
                 const alreadyIndexed = new Set(index.chapters[key].pages.map(p => p.file));
 
-                // Filtrer les images non encore indexées
+                // Filtrer les fichiers non encore indexés
                 const pendingFiles = force
-                    ? imageFiles
-                    : imageFiles.filter(f => !alreadyIndexed.has(f));
+                    ? allFiles
+                    : allFiles.filter(f => !alreadyIndexed.has(f));
 
                 if (pendingFiles.length === 0) {
-                    results.push(`Chapitre ${chapterNum} : déjà indexé (${imageFiles.length} pages) — ignoré`);
+                    results.push(`Chapitre ${chapterNum} : déjà indexé (${allFiles.length} fichiers) — ignoré`);
                     continue;
                 }
 
                 if (force) {
-                    // Réinitialiser le chapitre
                     index.chapters[key] = { pages: [] };
                 }
 
-                console.log(`[Index] Indexation du chapitre ${chapterNum} (${pendingFiles.length}/${imageFiles.length} images restantes)...`);
+                console.log(`[Index] Indexation du chapitre ${chapterNum} (${pendingFiles.length}/${allFiles.length} fichiers restants)...`);
 
-                for (const imageFile of pendingFiles) {
-                    const imagePath = path.join(safeDir, imageFile);
-                    const { text, method } = await extractTextWithFallback(imagePath, "français");
-                    index.chapters[key].pages.push({ file: imageFile, text });
+                const ocrLang = process.env.OCR_LANGUAGE ?? "fra";
+
+                for (const file of pendingFiles) {
+                    const filePath = path.join(safeDir, file);
+                    let text = "";
+                    let method = "unsupported";
+
+                    try {
+                        const result = await extractText(filePath, ocrLang);
+                        text = result.text;
+                        method = result.method;
+
+                        // Fallback GPT-4o Vision pour les images à faible confiance
+                        if (result.method === "ocr" && text.length < 20 && process.env.GITHUB_TOKEN) {
+                            console.warn(`[Index] OCR insuffisant pour "${file}". Fallback GPT-4o Vision...`);
+                            try {
+                                text = await extractTextFromImage(filePath, "français");
+                                method = "vision";
+                            } catch (vErr) {
+                                console.error(`[Index] GPT-4o Vision échoué : ${vErr instanceof Error ? vErr.message : String(vErr)}`);
+                            }
+                        }
+                    } catch (err) {
+                        console.error(`[Index] Erreur sur "${file}" : ${err instanceof Error ? err.message : String(err)}`);
+                    }
+
+                    index.chapters[key].pages.push({ file, text });
                     newPages++;
 
-                    // Sauvegarder après chaque image pour ne pas perdre la progression
+                    // Sauvegarder après chaque fichier pour ne pas perdre la progression
                     index.generatedAt = new Date().toISOString();
                     fs.writeFileSync(indexPath, JSON.stringify(index, null, 2), "utf-8");
-                    console.log(`[Index] Sauvegarde intermédiaire après "${imageFile}" (${method})`);
+                    console.log(`[Index] Sauvegarde intermédiaire après "${file}" (${method})`);
                 }
 
-                results.push(`Chapitre ${chapterNum} : ${pendingFiles.length} pages indexées ✓`);
+                results.push(`Chapitre ${chapterNum} : ${pendingFiles.length} fichier(s) indexé(s) ✓`);
             }
 
             // Sauvegarder (déjà sauvegardé au fil des images, mais on rafraîchit la date)
@@ -333,7 +365,7 @@ export function registerListDocumentsTool(server: McpServer) {
                 `${docs.length} document(s) disponible(s) :\n`,
                 ...docs.map(d =>
                     `• ${d.name}\n` +
-                    `  Chapitres : ${d.chapters}   |   Indexé le : ${d.generatedAt.slice(0, 10)}\n` +
+                    `  Chapitres : ${d.chapters} (n°: ${d.chapterNumbers.join(", ")})   |   Indexé le : ${d.generatedAt.slice(0, 10)}\n` +
                     `  Index : ${d.indexPath}`,
                 ),
                 `\nUtilisez le paramètre document="<name>" dans ask-document et generate-quiz.`,

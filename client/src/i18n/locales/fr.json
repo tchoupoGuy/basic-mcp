@@ -1,0 +1,90 @@
+{
+  "common": {
+    "chapterN": "Chapitre {{n}}",
+    "loading": "…"
+  },
+  "header": {
+    "subtitle": "Préparez votre certification à partir de vos cours numérisés"
+  },
+  "docSelector": {
+    "title": "Document actif",
+    "subtitle": "Source utilisée pour les questions et quiz",
+    "label": "Document",
+    "autoDetect": "Auto-détection",
+    "chapterCount": "{{count}} chap.",
+    "refresh": "↺ Actualiser",
+    "empty": "Aucun document analysé — utilisez l'étape 1 ci-dessous"
+  },
+  "step1": {
+    "title": "Analyser mes documents",
+    "subtitle": "L'IA lit vos fichiers une seule fois",
+    "hint": "Extrait le texte de vos documents et le sauvegarde localement. Formats supportés : <strong>images</strong> (png, jpg, tiff…) via Tesseract OCR, <strong>PDF natif</strong> (texte sélectionnable), <strong>Word</strong> (.docx), <strong>texte brut</strong> (.txt, .md). Les étapes 2 et 3 utilisent cet index sans relancer l'extraction.",
+    "nameLabel": "Nom",
+    "namePlaceholder": "ex: pmp, scrum-guide",
+    "folderLabel": "Dossier source",
+    "folderPlaceholder": "Chemin absolu vers le dossier (optionnel)",
+    "chaptersLabel": "Chapitres",
+    "chaptersPlaceholder": "ex: 1  ou  1,2,3",
+    "reanalyze": "Réanalyser (même si déjà fait)",
+    "btn": "Analyser",
+    "btnLoading": "Analyse en cours…",
+    "resultLabel": "Analyse{{name}} — chapitres [{{chapters}}]",
+    "autoLabel": "⏳ Document non analysé — analyse automatique du chapitre {{chapter}}...",
+    "autoMsg": "Ce chapitre n'a pas encore été analysé. Analyse en cours, merci de patienter..."
+  },
+  "step2": {
+    "title": "Poser une question",
+    "subtitle": "Basé sur votre cours",
+    "placeholder": "Ex: Quelle est la différence entre risk mitigation et risk avoidance ?\nEx: Explique la valeur acquise (EVM) et ses indicateurs CPI / SPI",
+    "chapterLabel": "Chapitre",
+    "allChapters": "Tous les chapitres",
+    "btn": "Poser la question",
+    "btnLoading": "Réponse en cours…",
+    "btnDone": "✓ Résultat ajouté ↓"
+  },
+  "step3": {
+    "title": "Générer un quiz QCM",
+    "subtitle": "Format examen PMI",
+    "hint": "Questions situationnelles avec 4 options, réponse correcte et explication détaillée.",
+    "chapterLabel": "Chapitre",
+    "countLabel": "Questions",
+    "domainLabel": "Domaine",
+    "domainAll": "Tous",
+    "domainPredictive": "Prédictif (PMBOK)",
+    "domainAgile": "Agile",
+    "domainHybrid": "Hybride",
+    "btn": "Générer le quiz",
+    "btnLoading": "Génération en cours…",
+    "btnDone": "✓ Résultat ajouté ↓",
+    "resultLabel": "Quiz Chap.{{chapter}} – {{count}} questions ({{domain}})"
+  },
+  "pdf": {
+    "title": "Exporter en PDF",
+    "subtitle": "Support de révision",
+    "modeLabel": "Mode",
+    "modeImages": "Images (fidèle à l'original)",
+    "modeVision": "Texte GPT-4o (recherchable)",
+    "modeImagesText": "Images + texte OCR",
+    "modeText": "Texte OCR Tesseract",
+    "chaptersLabel": "Chapitres",
+    "chaptersPlaceholder": "ex: 1,2,3",
+    "fileLabel": "Fichier",
+    "btn": "Générer le PDF",
+    "btnLoading": "Génération en cours…",
+    "resultLabel": "PDF [{{mode}}] chapitres [{{chapters}}]"
+  },
+  "results": {
+    "title": "Résultats ({{count}})",
+    "clear": "Tout effacer"
+  },
+  "review": {
+    "title": "Révision par chapitre",
+    "subtitle": "Résumé GPT-4o + suivi de maîtrise",
+    "chapterLabel": "Chapitre",
+    "btn": "Obtenir le résumé",
+    "btnLoading": "En cours…",
+    "hint": "Analyse automatiquement si nécessaire",
+    "summaryQuestion": "Fais un résumé détaillé et structuré de ce chapitre, avec les concepts clés, termes importants et points essentiels pour l'examen PMP.",
+    "resultLabel": "Résumé Chapitre {{chapter}}"
+  }
+}

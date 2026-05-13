@@ -2,6 +2,7 @@ import { Router } from "express";
 import { streamText, jsonSchema, tool, stepCountIs } from "ai";
 import { ollama } from "ollama-ai-provider-v2";
 import { Client } from "@modelcontextprotocol/sdk/client/index";
+import { saveHistory } from "../../infrastructure/history/historyStore";
 
 export function createChatRouter(mcpClient: Client): Router {
     const router = Router();
@@ -50,23 +51,48 @@ export function createChatRouter(mcpClient: Client): Router {
         ];
 
         const result = streamText({
-            model: ollama("llama3.2"),
+            model: ollama(process.env.OLLAMA_MODEL ?? "llama3.2"),
             system: "Tu es un assistant utile avec accès à des outils météo et GitHub. Réponds toujours dans la langue de l'utilisateur.",
             messages,
             tools,
             stopWhen: stepCountIs(5),
+            maxRetries: 0,
         });
 
         res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
         res.setHeader("Cache-Control", "no-cache");
         res.setHeader("Connection", "keep-alive");
 
-        for await (const chunk of result.textStream) {
-            res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+        let fullResponse = "";
+        try {
+            for await (const chunk of result.textStream) {
+                fullResponse += chunk;
+                res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            const isConnRefused = msg.includes("ECONNREFUSED") || msg.includes("connect");
+            fullResponse = isConnRefused
+                ? `⚠️ Ollama n'est pas démarré. Lancez \`ollama serve\` puis réessayez.`
+                : `⚠️ Erreur LLM : ${msg}`;
+            res.write(`data: ${JSON.stringify({ text: fullResponse })}\n\n`);
         }
 
         res.write("data: [DONE]\n\n");
         res.end();
+
+        // Persist conversation to history (fire-and-forget)
+        if (fullResponse && !fullResponse.startsWith("⚠️")) {
+            saveHistory({
+                type: "chat",
+                timestamp: new Date().toISOString(),
+                messages: [
+                    ...history,
+                    { role: "user", content: message },
+                    { role: "assistant", content: fullResponse },
+                ],
+            });
+        }
     });
 
     return router;

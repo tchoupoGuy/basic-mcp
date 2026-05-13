@@ -1,0 +1,313 @@
+LES MODÈLES MATHÉMATIQUES DU PROJET
+=====================================
+
+Ce projet utilise deux pipelines mathématiques distincts : un moteur de recherche
+documentaire (BM25) et un pipeline de traitement d'image pour l'OCR (Sharp + Tesseract).
+Ce cours explique chacun avec rigueur, en partant de l'intuition vers la formule.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. BM25 — MOTEUR DE RECHERCHE DOCUMENTAIRE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLÈME POSÉ
+-------------
+Vous posez une question : "Quelle est la différence entre risk mitigation et
+risk avoidance ?" Vous avez 120 pages de cours. Comment trouver les 5 pages
+les plus pertinentes SANS LLM ?
+
+La réponse naïve serait de compter combien de fois chaque mot de la question
+apparaît dans chaque page. C'est exactement TF (Term Frequency) — mais ça
+pose deux problèmes :
+
+  Problème 1 : Le mot "le" apparaît partout. Il ne veut rien dire.
+  Problème 2 : Une page de 500 mots aura naturellement plus d'occurrences
+               qu'une page de 50 mots — est-ce vraiment plus pertinente ?
+
+BM25 résout ces deux problèmes.
+
+
+ÉTAPE 1 : IDF — PÉNALISER LES MOTS COMMUNS
+-------------------------------------------
+
+Formule :
+  IDF(t) = log( (N - n_t + 0.5) / (n_t + 0.5) + 1 )
+
+Variables :
+  N   = nombre total de pages (documents)
+  n_t = nombre de pages contenant le terme t
+
+Intuition :
+  - "risk" apparaît dans 2 pages sur 120 → n_t = 2, IDF élevé → mot INFORMATIF
+  - "projet" apparaît dans 115 pages sur 120 → IDF ≈ 0 → mot NON DISCRIMINANT
+
+Le +1 final garantit que l'IDF reste positif même quand n_t = N.
+
+
+ÉTAPE 2 : TF SATURÉE — PÉNALISER LA RÉPÉTITION ABUSIVE
+-------------------------------------------------------
+
+Sans saturation, un document qui répète "risk" 100 fois obtiendrait un score
+100x plus grand qu'un document qui le cite 5 fois. C'est injuste.
+
+BM25 applique une fonction de saturation sur f(t,d) (fréquence brute du terme) :
+
+  TF_BM25(t, d) = f(t,d) * (k1 + 1)
+                  ─────────────────────────────────────────────────
+                  f(t,d) + k1 * (1 - b + b * |d| / avgdl)
+
+Variables :
+  f(t,d) = fréquence brute du terme t dans le document d
+  k1     = 1.5  (contrôle la saturation)
+  b      = 0.75 (contrôle la normalisation par longueur)
+  |d|    = longueur du document d en tokens
+  avgdl  = longueur moyenne de tous les documents
+
+Comportement de k1 — la courbe de saturation :
+  Quand f → infini : TF_BM25 → k1 + 1 = 2.5
+  La contribution d'un terme ne peut JAMAIS dépasser k1 + 1.
+  Après 5-10 occurrences, la courbe est quasi-plate.
+
+Rôle de b :
+  b = 0    → pas de normalisation par longueur (page longue avantagée)
+  b = 1    → normalisation complète (page longue pénalisée)
+  b = 0.75 → compromis empirique validé sur des milliers de collections
+
+
+SCORE FINAL BM25
+----------------
+
+  score(q, d) = Somme sur t dans q de :
+                  IDF(t) * f(t,d) * (k1 + 1)
+                           ─────────────────────────────────────────
+                           f(t,d) + k1 * (1 - b + b * |d| / avgdl)
+
+Extrait du code (bm25Engine.ts) :
+
+  for (const term of queryTokens) {
+      const nt  = index.df.get(term) ?? 0;
+      const idf = Math.log((N - nt + 0.5) / (nt + 0.5) + 1);
+      const ftd = index.tf.get(term)?.get(i) ?? 0;
+      const denom = ftd + K1 * (1 - B + B * docLen / avgdl);
+      score += idf * (ftd * (K1 + 1)) / denom;
+  }
+
+
+PRÉ-TRAITEMENT DU TEXTE : TOKENISATION
+---------------------------------------
+
+Avant d'indexer ou de scorer, chaque texte passe par cette chaîne :
+
+  1. Minuscules            : "Risk" → "risk"
+  2. NFD + suppression accents : "gérée" → "geree"
+  3. Suppression ponctuation et chiffres
+  4. Découpage sur les espaces (tokenisation)
+  5. Filtrage : tokens <= 2 chars supprimés, stop words supprimés
+
+Stop words : "le", "la", "the", "of", "est", "un", "une", etc.
+(liste bilingue FR + EN)
+
+
+COMPLEXITÉ ALGORITHMIQUE
+------------------------
+
+  Construction de l'index : O(somme des longueurs de tous les docs)
+                             → linéaire en tokens totaux
+
+  Une requête de q termes  : O(q * N) en théorie
+                             → O(q * n_t) en pratique grâce à la map inversée
+
+
+EXEMPLE CHIFFRÉ
+---------------
+
+Supposons 3 documents, k1 = 1.5, b = 0.75 :
+
+  d1 : "risk mitigation risk avoidance"  → 4 tokens
+  d2 : "planification projet gestion"    → 3 tokens
+  d3 : "risk"                            → 1 token
+
+  avgdl = (4 + 3 + 1) / 3 = 2.67
+
+Pour le terme "risk" : N = 3, n_t = 2 (présent dans d1 et d3)
+
+  IDF("risk") = log( (3 - 2 + 0.5) / (2 + 0.5) + 1 ) = log(1.6) ≈ 0.47
+
+Score de d1 pour "risk" : f(t, d1) = 2, |d1| = 4
+
+  TF_BM25 = (2 * 2.5) / (2 + 1.5 * (1 - 0.75 + 0.75 * 4/2.67))
+           = 5 / (2 + 1.5 * 1.375)
+           ≈ 5 / 4.06
+           ≈ 1.23
+
+  score(d1) = 0.47 * 1.23 ≈ 0.58
+
+d1 sera bien classé en premier. d3 aura un score plus faible malgré une
+densité relative plus grande, car d1 contient aussi le terme "mitigation"
+qui contribue supplémentairement.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. PIPELINE DE PRÉTRAITEMENT D'IMAGE (SHARP + TESSERACT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PROBLÈME POSÉ
+-------------
+Tesseract reçoit une image scannée. La qualité OCR dépend directement de la
+qualité des pixels. Chaque étape du pipeline est une transformation mathématique
+bien définie sur la matrice de pixels.
+
+
+ÉTAPE 1 : CONVERSION EN NIVEAUX DE GRIS
+----------------------------------------
+
+  Y = 0.299 * R + 0.587 * G + 0.114 * B
+
+Ce n'est PAS une simple moyenne. Ce sont les coefficients de luminance du
+standard ITU-R BT.601, calibrés sur la sensibilité de l'œil humain :
+
+  - L'œil est très sensible au vert  : 58.7 %
+  - Moyennement sensible au rouge    : 29.9 %
+  - Peu sensible au bleu             : 11.4 %
+
+Pourquoi : Tesseract n'a pas besoin de couleur. Un seul canal réduit le bruit
+et divise la taille des données par 3.
+
+
+ÉTAPE 2 : UPSCALE (INTERPOLATION DE LANCZOS3)
+----------------------------------------------
+
+Si l'image fait moins de 1800 px en largeur → facteur ×2.
+
+L'interpolation de Lanczos utilise un noyau de convolution :
+
+  L(x) = sinc(x) * sinc(x/a),   |x| < a
+
+  où sinc(x) = sin(pi*x) / (pi*x)   et   a = 3 (Lanczos3 = 3 lobes)
+
+Supérieur à l'interpolation bilinéaire car préserve les hautes fréquences
+(bords des caractères). La bilinéaire lisse trop et crée du flou.
+
+Règle empirique : Tesseract fonctionne mieux à >= 300 DPI.
+Pour un document A4 : 300 DPI ≈ 2480 × 3508 px.
+
+
+ÉTAPE 3 : NORMALISATION DES NIVEAUX (AUTO-LEVELS)
+--------------------------------------------------
+
+  p_out = (p_in - p_min) / (p_max - p_min) * 255
+
+Cette transformation étire l'histogramme pour couvrir tout [0, 255].
+
+Exemple — scanner produit une image terne (p_min = 40, p_max = 200) :
+  - Pixel à 40  → 0   (noir pur)
+  - Pixel à 200 → 255 (blanc pur)
+  - Pixel à 120 → (120 - 40) / (200 - 40) * 255 ≈ 128
+
+Résultat : contraste maximal, fond blanc uniforme, encre noire nette.
+
+
+ÉTAPE 4 : UNSHARP MASK (ACCENTUATION DES CONTOURS)
+---------------------------------------------------
+
+  I_sharp = I + sigma * (I - GaussianBlur(I))
+
+La quantité (I - GaussianBlur(I)) est le Laplacien de Gaussienne : elle
+extrait uniquement les détails haute fréquence (bords, contours).
+
+Paramètres utilisés :
+  sigma  = 1.5  : rayon du flou gaussien
+  flat   = 1.0  : intensité sur les zones homogènes
+  jagged = 2.0  : intensité sur les bords détectés (gradient élevé)
+
+Intuition : on soustrait la version floue, on réinjecte les contours en les
+amplifiant. Les lettres deviennent plus tranchées.
+
+
+ÉTAPE 5 : BINARISATION PAR SEUILLAGE
+--------------------------------------
+
+  p_out = 255  si p_in >= 128
+          0    sinon
+
+Seuillage global efficace car les étapes 3 et 4 ont déjà normalisé l'image.
+
+Méthode optimale théorique — Sauvola (seuillage adaptatif local) :
+
+  T(x,y) = mu(x,y) * [1 + k * (sigma(x,y)/R - 1)]
+
+  où mu(x,y)    = moyenne locale dans une fenêtre autour de (x,y)
+     sigma(x,y) = écart-type local
+     R = 128    = plage dynamique maximale
+     k in [0.2, 0.5]
+
+Gère les variations d'éclairage local mais plus coûteuse en calcul.
+
+
+SORTIE : PNG SANS COMPRESSION
+------------------------------
+
+Le buffer est passé directement à Tesseract (pas de fichier temporaire).
+Le format PNG est sans perte — les artefacts JPEG (compression DCT en blocs
+8×8) perturbent la segmentation des caractères par Tesseract.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SYNTHÈSE DU PIPELINE COMPLET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Question utilisateur
+       |
+       v
+  tokenize()          <- NFD + stop words + longueur > 2
+       |
+       v
+  BM25 search()       <- IDF x TF saturée -> top-5 passages
+       |
+       v
+  LLM (Ollama)        <- ~3 000 chars de contexte ciblé au lieu de 20 000
+       |
+       v
+  Réponse
+
+
+Image scannée
+       |
+  greyscale()         <- Y = 0.299*R + 0.587*G + 0.114*B
+       |
+  resize (x2)         <- Lanczos3, si largeur < 1800 px
+       |
+  normalize()         <- stretch [p_min, p_max] -> [0, 255]
+       |
+  sharpen()           <- Unsharp Mask, sigma = 1.5
+       |
+  threshold(128)      <- binarisation
+       |
+  Tesseract OCR       <- OEM.DEFAULT, PSM.AUTO, fra+osd
+       |
+       v
+  Texte extrait -> BM25 Index
+
+
+Objectif commun : maximiser la précision tout en minimisant le coût
+computationnel — pas de GPU, pas d'API payante, tout tourne en local.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RÉFÉRENCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Robertson, S. E., & Zaragoza, H. (2009). The Probabilistic Relevance
+  Framework: BM25 and Beyond. Foundations and Trends in Information Retrieval.
+
+- ITU-R BT.601 : Studio encoding parameters of digital television for
+  standard 4:3 and wide-screen 16:9 aspect ratios.
+
+- Lanczos, C. (1950). An iteration method for the solution of the eigenvalue
+  problem of linear differential and integral operators.
+
+- Sauvola, J., & Pietikainen, M. (2000). Adaptive document image binarization.
+  Pattern Recognition, 33(2), 225-236.
+
+- Sharp documentation  : https://sharp.pixelplumbing.com
+- Tesseract OCR docs   : https://tesseract-ocr.github.io
