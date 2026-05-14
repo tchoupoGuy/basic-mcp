@@ -13,16 +13,17 @@
  *   - "images+text" : image en haut de chaque page + texte OCR Tesseract en dessous.
  *     Le meilleur des deux : visuel fidele ET texte cherchable.
  *
- *   - "vision" : extraction de texte par LLM vision (GPT-4o via GitHub Models).
+ *   - "vision" : extraction de texte par LLM vision (LLaVA via Ollama, local et gratuit).
  *     Meilleure qualite que Tesseract sur les tableaux et mises en page complexes.
- *     Necessite un token GITHUB_TOKEN dans le fichier .env.
+ *     Necessite Ollama installe et le modele llava : ollama pull llava
  *
  * Le PDF est ecrit dans le dossier output/ a la racine du projet.
  *
  * Configuration via le fichier .env :
- *   DOCUMENT_BASE_PATH  = chemin absolu vers le dossier racine des chapitres
- *   OCR_LANGUAGE        = code langue Tesseract (ex: fra, eng, fra+eng)
- *   GITHUB_TOKEN        = PAT GitHub avec permission "Models: read" (mode vision)
+ *   DOCUMENT_BASE_PATH   = chemin absolu vers le dossier racine des chapitres
+ *   OCR_LANGUAGE         = code langue Tesseract (ex: fra, eng, fra+eng)
+ *   OLLAMA_BASE_URL      = URL Ollama (defaut: http://localhost:11434)
+ *   OLLAMA_VISION_MODEL  = modele vision Ollama (defaut: llava)
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp";
 import { z } from "zod";
@@ -127,7 +128,7 @@ export function registerGenerateDocumentPdfTool(server: McpServer) {
                 "Mode 'images' (default): inserts original images full-page, faithful to the original layout. " +
                 "Mode 'text': Tesseract OCR text only. " +
                 "Mode 'images+text': each original image followed by its Tesseract OCR text. " +
-                "Mode 'vision': GPT-4o (GitHub Models) extracts text -- best quality for complex layouts, requires GITHUB_TOKEN.",
+                "Mode 'vision': LLaVA (Ollama local) extracts text -- best quality for complex layouts, requires Ollama running with llava model.",
             inputSchema: z.object({
                 chapters: z
                     .array(z.number().int().min(1).max(9))
@@ -148,7 +149,7 @@ export function registerGenerateDocumentPdfTool(server: McpServer) {
                         "'images' (default): original images full-page, faithful rendering. " +
                         "'text': Tesseract OCR text only. " +
                         "'images+text': image + Tesseract OCR text per page. " +
-                        "'vision': GPT-4o vision text extraction (requires GITHUB_TOKEN).",
+                        "'vision': LLaVA vision text extraction via Ollama (local, requires ollama pull llava).",
                     ),
             }),
         },
@@ -266,7 +267,7 @@ export function registerGenerateDocumentPdfTool(server: McpServer) {
                     }
 
                     if (needsVision) {
-                        // Mode vision : extraction par GPT-4o via GitHub Models
+                        // Mode vision : extraction par LLaVA via Ollama (local, gratuit)
                         // Meilleure qualite que Tesseract sur les tableaux et mises en page complexes
                         let visionText = "";
                         try {
@@ -282,7 +283,7 @@ export function registerGenerateDocumentPdfTool(server: McpServer) {
                         if (trimmed) {
                             doc.addPage({ size: "A4", margins: TEXT_MARGINS });
                             doc.fontSize(9).fillColor("#555")
-                                .text(`[Vision GPT-4o - Chap. ${chapterNum} / ${imageFile}]`, { align: "right" });
+                                .text(`[Vision LLaVA - Chap. ${chapterNum} / ${imageFile}]`, { align: "right" });
                             doc.moveDown(0.3);
                             doc.fontSize(10).fillColor("black")
                                 .text(trimmed, { align: "justify", lineGap: 3 });

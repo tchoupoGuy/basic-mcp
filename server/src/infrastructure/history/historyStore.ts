@@ -1,7 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 
-const HISTORY_DIR = path.resolve("logs/history");
+// process.cwd() pointe vers la racine du projet (cohérent avec document-index.ts)
+const HISTORY_DIR = path.resolve(process.cwd(), "logs/history");
 
 function ensureDir() {
     if (!fs.existsSync(HISTORY_DIR)) fs.mkdirSync(HISTORY_DIR, { recursive: true });

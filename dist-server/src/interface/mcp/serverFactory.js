@@ -1,0 +1,36 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createMcpServer = createMcpServer;
+const mcp_1 = require("@modelcontextprotocol/sdk/server/mcp");
+const ping_1 = require("./tools/ping");
+const github_user_1 = require("./tools/github-user");
+const weather_1 = require("./tools/weather");
+const github_user_2 = require("./resources/github-user");
+const weather_2 = require("./resources/weather");
+const weather_3 = require("./prompts/weather");
+const github_user_3 = require("./prompts/github-user");
+const log_file_1 = require("./tools/log-file");
+const log_file_2 = require("./resources/log-file");
+const document_chapters_1 = require("./resources/document-chapters");
+const document_pdf_1 = require("./tools/document-pdf");
+const document_index_1 = require("./tools/document-index");
+const document_study_1 = require("./tools/document-study");
+function createMcpServer(getGitHubUserUseCase, getWeatherUseCase) {
+    const server = new mcp_1.McpServer({ name: "Basic MCP Server", version: "1.0.0" });
+    (0, ping_1.registerPingTool)(server);
+    (0, github_user_1.registerGithubUserTool)(server, getGitHubUserUseCase);
+    (0, weather_1.registerWeatherTool)(server, getWeatherUseCase);
+    (0, github_user_2.registerGithubUserResource)(server, getGitHubUserUseCase);
+    (0, weather_2.registerWeatherResource)(server, getWeatherUseCase);
+    (0, weather_3.registerWeatherPrompts)(server);
+    (0, github_user_3.registerGithubUserPrompts)(server);
+    (0, log_file_1.registerReadLogFileTool)(server);
+    (0, log_file_2.registerLogFileResource)(server);
+    (0, document_chapters_1.registerDocumentChaptersResource)(server);
+    (0, document_pdf_1.registerGenerateDocumentPdfTool)(server);
+    (0, document_index_1.registerExtractDocumentIndexTool)(server);
+    (0, document_index_1.registerListDocumentsTool)(server);
+    (0, document_study_1.registerAskDocumentTool)(server);
+    (0, document_study_1.registerGenerateQuizTool)(server);
+    return server;
+}

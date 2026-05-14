@@ -16,9 +16,11 @@
     "start:ui": "concurrently \"npm run start:http\" \"npm run dev --prefix client\"",
     "test": "npm test",
     "electron:build-main": "tsc -p tsconfig.electron.json",
+    "electron:build-server": "node scripts/build-server.mjs",
     "electron:dev": "concurrently \"npm run start:http\" \"npm run dev --prefix client\" \"npm run electron:start\"",
     "electron:start": "electron .",
-    "electron:pack": "npm run electron:build-main && npm run build --prefix client && electron-packager . \"Assistant PMP\" --platform=win32 --arch=x64 --out=dist-app --overwrite --electron-version=42.0.1 --ignore=\"^/dist-app$\" --ignore=\"^/.git$\" --ignore=\"^/client/src$\" --ignore=\"^/electron$\" --no-prune",
+    "electron:rebuild": "electron-rebuild -v 42.0.1",
+    "electron:pack": "npm run electron:build-main && npm run electron:build-server && npm run build --prefix client && npm run electron:rebuild && electron-packager . \"Assistant PMP\" --platform=win32 --arch=x64 --out=dist-app --overwrite --electron-version=42.0.1 --no-asar --ignore=\"^/dist-app$\" --ignore=\"^/.git$\" --ignore=\"^/client/src$\" --ignore=\"^/electron$\" --no-prune",
     "electron:dist": "npm run electron:pack"
   },
   "dependencies": {
@@ -42,6 +44,7 @@
   },
   "devDependencies": {
     "@electron/packager": "^20.0.0",
+    "@electron/rebuild": "^3.7.2",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",

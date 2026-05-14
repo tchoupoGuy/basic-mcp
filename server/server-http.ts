@@ -1,14 +1,33 @@
+import { setGlobalDispatcher, Agent, fetch as undiciFetch } from "undici";
+
+// Étend les timeouts HTTP Node.js (undici) pour les appels LLM longue durée.
+// Ollama peut prendre plusieurs minutes pour charger un modèle et générer
+// une réponse complète (quiz 5 questions ≈ 3-8 min sur CPU).
+const extendedAgent = new Agent({
+    headersTimeout: 600_000,   // 10 min : temps pour obtenir les premiers headers
+    bodyTimeout:    1_800_000, // 30 min : temps pour recevoir la réponse complète
+});
+setGlobalDispatcher(extendedAgent);
+
+// Remplace globalThis.fetch par la version undici pour que tous les appels
+// (y compris ollama-ai-provider-v2 qui utilise le fetch natif) bénéficient
+// des timeouts étendus.
+// @ts-ignore — undici fetch est compatible avec le standard Fetch API
+globalThis.fetch = (input: Parameters<typeof undiciFetch>[0], init?: Parameters<typeof undiciFetch>[1]) =>
+    undiciFetch(input, { ...(init ?? {}), dispatcher: extendedAgent } as Parameters<typeof undiciFetch>[1]);
+
 import express from "express";
 import cors from "cors";
 import { randomUUID } from "crypto";
 import { config } from "dotenv";
+import * as path from "path";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp";
 import { buildServer, buildUseCases, buildInProcessMcpClient } from "./src/compositionRoot";
 import { createChatRouter } from "./src/interface/chat/chatRoute";
 import { createHistoryRouter } from "./src/interface/history/historyRoute";
 import { warmupTesseractWorker } from "./src/infrastructure/ocr/tesseractWorker";
 
-config({ path: new URL("../.env", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1") });
+config({ path: path.resolve(__dirname, "../.env") });
 
 const app = express();
 app.use(cors({
@@ -93,6 +112,7 @@ async function init() {
     const mcpClient = await buildInProcessMcpClient();
     app.use(createChatRouter(mcpClient));
     app.use(createHistoryRouter());
+    app.get("/health", (_req, res) => res.json({ ok: true }));
 
     app.listen(PORT, () => {
         console.log(`MCP HTTP server running at http://localhost:${PORT}/mcp`);

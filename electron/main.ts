@@ -1,37 +1,85 @@
-import { app, BrowserWindow, shell } from "electron";
-import { spawn, ChildProcess } from "child_process";
+import { app, BrowserWindow, shell, utilityProcess } from "electron";
+import type { UtilityProcess } from "electron";
 import * as path from "path";
 import * as http from "http";
+import * as fs from "fs";
 
 let mainWindow: BrowserWindow | null = null;
-let serverProcess: ChildProcess | null = null;
+let serverProcess: UtilityProcess | null = null;
+
+// Prevent multiple instances of the app
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+}
+
+app.on("second-instance", () => {
+    // If a second instance tries to start, focus the existing window
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+    }
+});
 
 const SERVER_PORT = 3001;
 const DEV_CLIENT_URL = "http://localhost:5173";
 const isDev = !app.isPackaged;
 
+// Root of the project (works both in dev and packaged with electron-packager)
+function projectRoot(): string {
+    return isDev
+        ? path.join(__dirname, "..")
+        : app.getAppPath();
+}
+
 // ── Start the Express backend ────────────────────────────────────────────────
 function startBackend(): void {
-    const serverEntry = isDev
-        ? path.join(__dirname, "..", "server", "server-http.ts")
-        : path.join(process.resourcesPath, "server", "server-http.js");
+    if (isDev) {
+        // In dev mode (electron:dev), the backend is already started by concurrently
+        return;
+    }
 
-    const cmd = isDev ? "npx" : "node";
-    const args = isDev ? ["tsx", serverEntry] : [serverEntry];
+    const root = projectRoot();
+    // Run the pre-compiled JavaScript server (no tsx needed at runtime)
+    const serverEntry = path.join(root, "dist-server", "server-http.js");
 
-    serverProcess = spawn(cmd, args, {
-        cwd: isDev ? path.join(__dirname, "..") : process.resourcesPath,
+    // Ensure logs directory exists and open log stream
+    const logsDir = path.join(root, "logs");
+    fs.mkdirSync(logsDir, { recursive: true });
+    const logPath = path.join(logsDir, "server-electron.log");
+    const logStream = fs.createWriteStream(logPath, { flags: "a" });
+    const logLine = (msg: string) => logStream.write(`[${new Date().toISOString()}] ${msg}\n`);
+
+    logLine(`Starting backend: ${serverEntry}`);
+    console.log("[Electron] Starting backend:", serverEntry);
+
+    serverProcess = utilityProcess.fork(serverEntry, [], {
+        cwd: root,
         env: { ...process.env, PORT: String(SERVER_PORT) },
-        stdio: "inherit",
-        shell: true,
+        stdio: "pipe",
     });
 
-    serverProcess.on("error", (err) => console.error("[Electron] Backend error:", err));
-    serverProcess.on("exit", (code) => console.log("[Electron] Backend exited with code:", code));
+    serverProcess.stdout?.on("data", (data: Buffer) => logStream.write(data));
+    serverProcess.stderr?.on("data", (data: Buffer) => logStream.write(data));
+
+    serverProcess.on("exit", (code) => {
+        logLine(`Backend exited with code: ${code}`);
+        logStream.end();
+        console.log("[Electron] Backend exited with code:", code);
+        if (code !== 0 && mainWindow) {
+            mainWindow.webContents.executeJavaScript(
+                `document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;color:#c00">' +
+                '<h2>Erreur : le serveur backend n\\'a pas pu démarrer (code ' + ${JSON.stringify(String("" + code))} + ')</h2>' +
+                '<p>Consultez le fichier de log pour le détail :</p>' +
+                '<pre style="background:#fdd;padding:10px;font-size:12px">${logPath.replace(/\\/g, "\\\\")}</pre>' +
+                '</div>'`,
+            ).catch(() => {});
+        }
+    });
 }
 
 // ── Wait until the backend is ready ─────────────────────────────────────────
-function waitForBackend(retries = 30, delay = 500): Promise<void> {
+function waitForBackend(retries = 60, delay = 1000): Promise<void> {
     return new Promise((resolve, reject) => {
         function check(n: number) {
             http.get(`http://localhost:${SERVER_PORT}/health`, (res) => {
@@ -73,10 +121,11 @@ async function createWindow(): Promise<void> {
         await mainWindow.loadURL(DEV_CLIENT_URL);
         mainWindow.webContents.openDevTools();
     } else {
-        // In production, load the built Vite output
-        await mainWindow.loadFile(
-            path.join(process.resourcesPath, "client", "dist", "index.html")
-        );
+        const indexPath = path.join(app.getAppPath(), "client", "dist", "index.html");
+        console.log("[Electron] Loading UI from:", indexPath);
+        await mainWindow.loadFile(indexPath);
+        // Uncomment next line to debug a blank window:
+        // mainWindow.webContents.openDevTools();
     }
 
     mainWindow.on("closed", () => { mainWindow = null; });

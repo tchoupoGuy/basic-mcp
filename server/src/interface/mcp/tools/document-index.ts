@@ -37,8 +37,8 @@ import { extractText, isSupportedFile, SUPPORTED_EXTENSIONS } from "../../../inf
  * Pipeline mathématique appliqué avant l'OCR :
  *   Niveaux de gris → Upscale (×2 si < 1800px) → Normalize → Unsharp Mask → Binarisation
  *
- * Fallback : si Tesseract échoue et que GITHUB_TOKEN est présent,
- * on bascule sur GPT-4o Vision.
+ * Fallback : si Tesseract a une confiance < 60%, bascule automatiquement sur LLaVA Vision
+ * via Ollama (modèle local, gratuit). Prérequis : Ollama lancé + `ollama pull llava`.
  */
 async function extractTextWithFallback(imagePath: string, language: string): Promise<{ text: string; method: "vision" | "ocr" }> {
     // ── Priorité 1 : Tesseract + prétraitement Sharp (100% local) ──────────
@@ -55,11 +55,11 @@ async function extractTextWithFallback(imagePath: string, language: string): Pro
             `→ ${text.length} chars | conf. ${Math.round(data.confidence)}%`,
         );
 
-        // Si la confiance est trop faible et GPT-4o est disponible, on utilise le fallback
-        if (data.confidence < 40 && process.env.GITHUB_TOKEN) {
+        // Si la confiance Tesseract est trop faible, on bascule sur LLaVA Vision
+        if (data.confidence < 60) {
             console.warn(
                 `[OCR] Confiance faible (${Math.round(data.confidence)}%) pour "${path.basename(imagePath)}". ` +
-                `Fallback GPT-4o...`,
+                `Fallback LLaVA Vision...`,
             );
             throw new Error(`Confiance OCR trop faible : ${data.confidence}%`);
         }
@@ -68,25 +68,19 @@ async function extractTextWithFallback(imagePath: string, language: string): Pro
     } catch (ocrErr) {
         const msg = ocrErr instanceof Error ? ocrErr.message : String(ocrErr);
 
-        // ── Priorité 2 : GPT-4o Vision (fallback optionnel) ────────────────
-        if (process.env.GITHUB_TOKEN) {
-            console.warn(
-                `[OCR] Tesseract échoué pour "${path.basename(imagePath)}" (${msg.slice(0, 60)}). ` +
-                `Fallback GPT-4o Vision...`,
-            );
-            try {
-                const text = await extractTextFromImage(imagePath, language);
-                return { text, method: "vision" };
-            } catch (visionErr) {
-                const vMsg = visionErr instanceof Error ? visionErr.message : String(visionErr);
-                console.error(`[OCR] GPT-4o Vision également échoué : ${vMsg.slice(0, 80)}`);
-                return { text: "", method: "ocr" };
-            }
+        // ── Priorité 2 : LLaVA Vision via Ollama (fallback automatique) ────
+        console.warn(
+            `[OCR] Tesseract insuffisant pour "${path.basename(imagePath)}" (${msg.slice(0, 60)}). ` +
+            `Fallback LLaVA Vision...`,
+        );
+        try {
+            const text = await extractTextFromImage(imagePath, language);
+            return { text, method: "vision" };
+        } catch (visionErr) {
+            const vMsg = visionErr instanceof Error ? visionErr.message : String(visionErr);
+            console.error(`[OCR] LLaVA Vision échoué (Ollama lancé ? ollama pull llava ?) : ${vMsg.slice(0, 80)}`);
+            return { text: "", method: "ocr" };
         }
-
-        // Aucun fallback disponible — page ignorée
-        console.error(`[OCR] Impossible d'extraire "${path.basename(imagePath)}" : ${msg.slice(0, 80)}`);
-        return { text: "", method: "ocr" };
     }
 }
 
